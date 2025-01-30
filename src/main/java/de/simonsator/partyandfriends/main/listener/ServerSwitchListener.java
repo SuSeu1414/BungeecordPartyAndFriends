@@ -17,7 +17,10 @@ import net.md_5.bungee.api.plugin.Listener;
 import net.md_5.bungee.event.EventHandler;
 
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * The class with the ServerSwitchEvent
@@ -33,6 +36,7 @@ public class ServerSwitchListener extends WaitForTasksToFinish implements Listen
 	private final Set<String> notJoinServers;
 	private final int CONNECT_DELAY;
 	private final boolean SEND_FRIENDS_ON_SERVER_SWITCH_MESSAGE;
+	private final Set<List<String>> SERVER_GROUPS;
 
 	/**
 	 * Initials the object
@@ -41,6 +45,10 @@ public class ServerSwitchListener extends WaitForTasksToFinish implements Listen
 		notJoinServers = new HashSet<>(Main.getInstance().getGeneralConfig().getStringList("General.PartyDoNotJoinTheseServers"));
 		CONNECT_DELAY = Main.getInstance().getGeneralConfig().getInt("General.PartyJoinDelayInSeconds");
 		SEND_FRIENDS_ON_SERVER_SWITCH_MESSAGE = Main.getInstance().getGeneralConfig().getBoolean("Friends.SendMessageToFriendsOnServerSwitch");
+		SERVER_GROUPS = Main.getInstance().getGeneralConfig().getSectionKeys("General.ServerGroups").stream()
+			.map(groupName -> Main.getInstance().getGeneralConfig().getStringList("General.ServerGroups." + groupName))
+			.collect(Collectors.toSet());
+
 		instance = this;
 	}
 
@@ -66,7 +74,7 @@ public class ServerSwitchListener extends WaitForTasksToFinish implements Listen
 				return;
 			OnlinePAFPlayer player = PAFPlayerManager.getInstance().getPlayer(pEvent.getPlayer());
 			moveParty(player, joinedServer);
-			if (SEND_FRIENDS_ON_SERVER_SWITCH_MESSAGE) {
+			if (SEND_FRIENDS_ON_SERVER_SWITCH_MESSAGE && checkServers(pEvent.getFrom() == null ? "" : pEvent.getFrom().getName(), joinedServer.getInfo().getName())) {
 				sendFriendMessages(player, joinedServer);
 			}
 		} finally {
@@ -98,5 +106,13 @@ public class ServerSwitchListener extends WaitForTasksToFinish implements Listen
 					+ Main.getInstance().getMessages().getString("Party.Command.General.ServerSwitched")
 					.replace("[SERVER]", ServerDisplayNameCollection.getInstance().getServerDisplayName(server))));
 		}
+	}
+
+	private boolean checkServers(String from, String to) {
+		return !SERVER_GROUPS.stream()
+				.filter(group -> group.contains(from))
+				.findFirst()
+				.map(group -> group.contains(to))
+				.orElseGet(() -> false);
 	}
 }
